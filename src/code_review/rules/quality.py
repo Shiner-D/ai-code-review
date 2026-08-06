@@ -7,15 +7,24 @@ from ..models import FileDiff, Issue
 
 
 _PRINT_PY_RE = re.compile(r'^\s*print\s*\(')
-_CONSOLE_LOG_RE = re.compile(r'\bconsole\.(log|debug|warn|error)\s*\(')
-_SYSTEM_OUT_RE = re.compile(r'System\.out\.print')
+# Only flag console.log/debug — console.error/warn are legitimate for error reporting
+_CONSOLE_LOG_RE = re.compile(r'\bconsole\.(log|debug)\s*\(')
+_SYSTEM_OUT_RE = re.compile(r'System\.out\.println?\s*\(')
 
 _TODO_RE = re.compile(r'(?i)\b(TODO|FIXME|HACK|XXX)\b')
 
 _BARE_EXCEPT_RE = re.compile(r'^\s*except\s*:\s*$')
 
-# Magic number: standalone integer ≥ 100 not in an obvious constant definition
-_MAGIC_NUM_RE = re.compile(r'(?<![A-Z_=\[\(,])\b([1-9]\d{2,})\b(?!\s*[=:])')
+# Magic number: standalone integer ≥ 1000, excluding HTTP status codes and common constants
+_MAGIC_NUM_RE = re.compile(r'(?<![A-Z_=\[\(,\.])\b([1-9]\d{3,})\b(?!\s*[=:])')
+
+# Standard HTTP status codes — never magic numbers
+_HTTP_STATUS_CODES = {
+    100, 101, 200, 201, 202, 204, 206,
+    301, 302, 303, 304, 307, 308,
+    400, 401, 402, 403, 404, 405, 408, 409, 410, 413, 415, 422, 429,
+    500, 501, 502, 503, 504,
+}
 
 
 class DebugPrintRule(Rule):
@@ -89,13 +98,18 @@ class MagicNumberRule(Rule):
         issues = []
         for lineno, content in file_diff.added_lines_flat():
             stripped = content.strip()
-            # Skip comments and constant definitions
-            if stripped.startswith(("#", "//", "*", "/*")) or re.match(r'^[A-Z_]+ =', stripped):
+            # Skip comments, constant definitions, and import/type lines
+            if stripped.startswith(("#", "//", "*", "/*", "import", "from")):
+                continue
+            if re.match(r'^[A-Z_]+ =', stripped):
                 continue
             for m in _MAGIC_NUM_RE.finditer(content):
+                val = int(m.group(1))
+                if val in _HTTP_STATUS_CODES:
+                    continue
                 issues.append(self._make_issue(
                     file_diff.filename, lineno,
-                    f"Magic number {m.group(1)} — consider extracting to a named constant.",
+                    f"Magic number {val} — consider extracting to a named constant.",
                 ))
                 break  # one issue per line is enough
         return issues

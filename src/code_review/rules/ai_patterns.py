@@ -14,11 +14,27 @@ _DEF_RE = re.compile(r'^\s*def\s+\w+')
 _RETURN_RE = re.compile(r'^\s*(return|raise|throw)\b')
 _CODE_AFTER_RETURN_RE = re.compile(r'^\s+\S')
 
-# Null/None return functions commonly called by AI without null check
+# Functions that genuinely can return null/None (single-record lookups)
+# Deliberately excludes: findMany/findAll/findFirst (return array/throw), fetch() (throws)
 _NULLABLE_CALL_RE = re.compile(
-    r'(?i)\b(find|get|fetch|load|query|search|lookup)\w*\s*\('
+    r'(?i)\b(findOne|findById|findUnique|getOne|getById|getUserById'
+    r'|findUser|getUser|findItem|getItem|findRecord|getRecord'
+    r'|querySelector|getElementById|getElementBy\w+'
+    r'|lookupUser|lookupById)\s*\('
 )
-_NULL_CHECK_RE = re.compile(r'(?i)(is\s+None|is\s+not\s+None|!= null|== null|\?\.|if\s+\w+\s*:)')
+
+# Null guard patterns — checked in a wider window (before and after the call)
+_NULL_CHECK_RE = re.compile(
+    r'(?i)(is\s+None|is\s+not\s+None|!= null|== null|\?\.'
+    r'|if\s*\(?\s*\!?\s*\w|\.length\s*===?\s*0|throw\s+new\s+\w+Error'
+    r'|notFound\(\)|return\s+null|return\s+response)'
+)
+
+# Lines that are definitions or infrastructure — never flag these
+_DEFINITION_RE = re.compile(
+    r'(?i)(^\s*(async\s+)?function\s+\w|^\s*(export\s+)?(const|let|var)\s+\w+\s*='
+    r'|\=>\s*\{|useEffect\s*\(|\.then\s*\(|\.catch\s*\(|await\s+fetch\()'
+)
 
 
 class StubFunctionRule(Rule):
@@ -75,24 +91,30 @@ class UnreachableCodeRule(Rule):
 
 class MissingNullCheckRule(Rule):
     id = "AIP003"
-    description = "Result of nullable function used without null check"
+    description = "Single-record lookup result used without null check"
     severity = "medium"
 
+    # Look 4 lines before and 4 lines after the call for a null guard
+    _WINDOW = 4
+
     def check(self, file_diff: FileDiff) -> list[Issue]:
-        """Flag lines where a get/find/fetch call result is used without a guard."""
         issues = []
         lines = file_diff.added_lines_flat()
         for idx, (lineno, content) in enumerate(lines):
             if not _NULLABLE_CALL_RE.search(content):
                 continue
-            # Check if there's a null guard on this line or the next two lines
-            window = [c for _, c in lines[idx:idx + 3]]
-            combined = " ".join(window)
-            if not _NULL_CHECK_RE.search(combined):
+            # Skip function definitions and infrastructure lines
+            if _DEFINITION_RE.search(content):
+                continue
+            # Look in a window before and after for any null guard
+            start = max(0, idx - self._WINDOW)
+            end = min(len(lines), idx + self._WINDOW + 1)
+            window_text = " ".join(c for _, c in lines[start:end])
+            if not _NULL_CHECK_RE.search(window_text):
                 issues.append(self._make_issue(
                     file_diff.filename, lineno,
-                    "Result of a nullable function (get/find/fetch) used without a null check.",
-                    "Add a None/null guard before accessing attributes of the result.",
+                    "Single-record lookup result used without a visible null check nearby.",
+                    "Add a null/None guard before accessing properties of the result.",
                 ))
         return issues
 
