@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(where python *)",
+      "Bash(D:\\\\tools\\\\python.exe -m pip install pytest rich click anthropic --quiet)",
+      "PowerShell(D:\\\\tools\\\\python.exe -m pip install pytest rich click anthropic --quiet 2>&1)",
+      "PowerShell(Set-Location \"e:\\\\Tools\\\\codeReview\"; $env:PYTHONPATH = \"src\"; Get-Content tests\\\\fixtures\\\\sample.diff | D:\\\\tools\\\\python.exe -m code_review.cli --rules-only --output-dir .\\\\test-output; echo \"Exit: $LASTEXITCODE\")",
+      "PowerShell(Set-Location \"e:\\\\Tools\\\\codeReview\"; $env:PYTHONPATH = \"src\"; D:\\\\tools\\\\python.exe -m code_review.cli --diff-file tests\\\\fixtures\\\\sample.diff --rules-only --output-dir .\\\\test-output; echo \"Exit code: $LASTEXITCODE\")",
+      "PowerShell(Set-Location \"e:\\\\Tools\\\\codeReview\"; $env:PYTHONPATH = \"src\"; D:\\\\tools\\\\python.exe -c \"from code_review.cli import main; print\\('import OK'\\)\" 2>&1)",
+      "PowerShell(Set-Location \"e:\\\\Tools\\\\codeReview\"; $env:PYTHONPATH = \"src\"; D:\\\\tools\\\\python.exe -m pytest tests/ -v 2>&1)"
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  ai-code-review:
+    name: AI Code Review
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # for posting PR comments
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # needed to diff against base branch
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ai-code-review
+        run: pip install git+https://github.com/Shiner-D/ai-code-review.git
+
+      - name: Run AI Code Review
+        id: review
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD | \
+            ai-code-review \
+              --output-dir ./ai-review \
+              --fail-on high \
+              --model claude-sonnet-4-6
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        continue-on-error: true   # capture exit code below
+
+      - name: Post review as PR comment
+        if: always() && hashFiles('./ai-review/review.md') != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('./ai-review/review.md', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body.substring(0, 65536),  // GitHub comment limit
+            });
+
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-code-review
+          path: ./ai-review/
+
+      - name: Fail if review failed
+        if: steps.review.outcome == 'failure'
+        run: exit 1

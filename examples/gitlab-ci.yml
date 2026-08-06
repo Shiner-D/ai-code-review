@@ -1,0 +1,23 @@
+ai-code-review:
+  stage: test
+  image: python:3.11-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - pip install git+https://github.com/Shiner-D/ai-code-review.git
+  script:
+    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - git diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME...HEAD |
+        ai-code-review
+          --output-dir ./ai-review
+          --fail-on high
+          --model claude-sonnet-4-6
+  artifacts:
+    when: always
+    paths:
+      - ai-review/
+    reports:
+      # Expose review.json as a downloadable artifact
+      dotenv: ai-review/review.json
+  variables:
+    ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY   # set in GitLab CI/CD settings

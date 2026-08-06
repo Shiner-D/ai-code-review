@@ -1,0 +1,35 @@
+trigger: none
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.11"
+
+  - script: pip install git+https://github.com/Shiner-D/ai-code-review.git
+    displayName: Install ai-code-review
+
+  - script: |
+      git fetch origin $(System.PullRequest.TargetBranch)
+      git diff origin/$(System.PullRequest.TargetBranch)...HEAD | \
+        ai-code-review \
+          --output-dir $(Build.ArtifactStagingDirectory)/ai-review \
+          --fail-on high \
+          --model claude-sonnet-4-6
+    displayName: Run AI Code Review
+    env:
+      ANTHROPIC_API_KEY: $(ANTHROPIC_API_KEY)   # set in pipeline Library
+    continueOnError: true
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: $(Build.ArtifactStagingDirectory)/ai-review
+      artifactName: ai-code-review
+    condition: always()

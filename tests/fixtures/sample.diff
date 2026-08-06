@@ -1,0 +1,48 @@
+diff --git a/src/auth/login.py b/src/auth/login.py
+index 0000000..1234567 100644
+--- a/src/auth/login.py
++++ b/src/auth/login.py
+@@ -1,5 +1,35 @@
++import hashlib
++import subprocess
++
++DB_PASSWORD = "super_secret_123"
++
++def authenticate_user(username, password):
++    # TODO: add rate limiting
++    conn = get_db()
++    query = "SELECT * FROM users WHERE username = '" + username + "'"
++    result = conn.execute(query)
++    user = result.fetchone()
++    pwd_hash = hashlib.md5(password.encode()).hexdigest()
++    if user and user['password_hash'] == pwd_hash:
++        return user
++    return None
++
++def run_report(report_name):
++    subprocess.run(f"generate_report.sh {report_name}", shell=True)
++
++def process_data(data):
++    pass
++
++def get_config():
++    config = load_config()
++    return config['timeout'] * 1000
++
+diff --git a/src/utils/helpers.ts b/src/utils/helpers.ts
+index 0000000..abcdef0 100644
+--- a/src/utils/helpers.ts
++++ b/src/utils/helpers.ts
+@@ -1,4 +1,18 @@
++export function fetchUserData(userId: string) {
++  const user = getUserById(userId);
++  console.log("Fetching user:", userId);
++  return user.profile.name;
++}
++
++export function calculateDiscount(price: number, items: number) {
++  if (items > 100) {
++    return price * 0.85;
++  }
++  return price;
++}
